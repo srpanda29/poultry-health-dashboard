@@ -1,33 +1,281 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Poultry Health Dashboard</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="./style.css"> <!-- Corrected path -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        /* Custom CSS for text gradient */
-        .text-gradient {
-            background-clip: text;
-            -webkit-background-clip: text;
-            color: transparent;
-            background-image: linear-gradient(to right, #a78bfa, #818cf8, #3b82f6); /* Purple, Indigo, Blue */
-        }
-        /* Ensure body height for min-h-screen to work */
-        html, body, #root {
-            height: 100%;
-            margin: 0;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Poultry Health Dashboard</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+
+  <script src="https://unpkg.com/lucide-react@latest/dist/lucide-react.js"></script>
+
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    /* Google Font for the 'font-inter' class */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    /* Custom styles from your React component */
+    .text-gradient {
+      background-clip: text;
+      -webkit-background-clip: text;
+      color: transparent;
+      background-image: linear-gradient(to right, #a78bfa, #818cf8, #3b82f6);
+    }
+    .hover\:shadow-3xl:hover {
+      box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.3);
+    }
+    .custom-shadow {
+       box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    }
+     .custom-shadow-sm {
+       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+  </style>
 </head>
 <body>
-    <div id="root"></div>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/lucide-react@0.395.0/dist/lucide-react.umd.js"></script>
-    <script type="text/babel" src="./app.js"></script> <!-- Corrected path -->
+  <div id="root"></div>
+
+  <script type="text/babel">
+    // Libraries are now available globally, so we deconstruct what we need
+    const { useState, useEffect, useRef } = React;
+    const { Thermometer, Droplets, CloudFog, UploadCloud, Camera, CheckCircle, XCircle, Play, Pause, Maximize, Minimize } = lucide;
+
+    // Main App component for the Poultry Health Dashboard
+    const App = () => {
+      // State for disease detection
+      const [selectedImage, setSelectedImage] = useState(null);
+      const [imagePreviewUrl, setImagePreviewUrl] = useState('');
+      const [detectionResult, setDetectionResult] = useState('');
+      const [rawApiResponse, setRawApiResponse] = useState(''); // For debugging
+      const [isLoading, setIsLoading] = useState(false);
+      const [errorMessage, setErrorMessage] = useState('');
+
+      // States for Live Sensor Data
+      const [temperature, setTemperature] = useState('N/A');
+      const [humidity, setHumidity] = useState('N/A');
+      const [ammonia, setAmmonia] = useState('N/A');
+
+      // States for Webcam
+      const videoRef = useRef(null); // Reference to the video element
+      const [webcamActive, setWebcamActive] = useState(false);
+      const [webcamError, setWebcamError] = useState('');
+
+      // State for Fullscreen
+      const appRef = useRef(null); // Reference to the main app div for fullscreen
+      const [isFullscreen, setIsFullscreen] = useState(false);
+
+      // Roboflow API details
+      const ROBOTFLOW_API_KEY = "77URwEVgvgWzOu2ft6CF";
+      const ROBOTFLOW_WORKFLOW_ENDPOINT = "https://serverless.roboflow.com/infer/workflows/poultrydetection-ptwgp/detect-and-classify-2";
+
+      // Simulate live sensor data updates
+      useEffect(() => {
+        const fetchSensorData = () => {
+          // Simulated data for demonstration
+          setTemperature(`${(Math.random() * (30 - 20) + 20).toFixed(1)}°C`);
+          setHumidity(`${(Math.random() * (70 - 40) + 40).toFixed(1)}%`);
+          setAmmonia(`${(Math.random() * (20 - 5) + 5).toFixed(1)} ppm`);
+        };
+        fetchSensorData();
+        const interval = setInterval(fetchSensorData, 5000);
+        return () => clearInterval(interval);
+      }, []);
+
+      // Effect to handle webcam stream
+      useEffect(() => {
+        if (webcamActive) {
+          navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+              if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                videoRef.current.play();
+              }
+            })
+            .catch(err => {
+              console.error("Error accessing webcam:", err);
+              setWebcamError("Cannot access webcam. Please ensure permissions are granted.");
+              setWebcamActive(false);
+            });
+        } else {
+          if (videoRef.current && videoRef.current.srcObject) {
+            const tracks = videoRef.current.srcObject.getTracks();
+            tracks.forEach(track => track.stop());
+            videoRef.current.srcObject = null;
+          }
+        }
+        return () => {
+          if (videoRef.current && videoRef.current.srcObject) {
+            videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+          }
+        };
+      }, [webcamActive]);
+
+      const toggleWebcam = () => setWebcamActive(prev => !prev);
+
+      const toggleFullscreen = () => {
+        if (!document.fullscreenElement) {
+          appRef.current.requestFullscreen().catch(err => console.error(`Fullscreen Error: ${err.message}`));
+        } else {
+          document.exitFullscreen();
+        }
+      };
+
+      useEffect(() => {
+        const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      }, []);
+
+      const handleImageChange = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+          setSelectedImage(file);
+          setImagePreviewUrl(URL.createObjectURL(file));
+          setDetectionResult('');
+          setRawApiResponse('');
+          setErrorMessage('');
+        }
+      };
+
+      const fileToBase64 = (file) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = error => reject(error);
+      });
+
+      const handleDetectDisease = async () => {
+        if (!selectedImage) {
+          setErrorMessage('Please select an image first.');
+          return;
+        }
+        setIsLoading(true);
+        setErrorMessage('');
+        setDetectionResult('');
+        setRawApiResponse('');
+        try {
+          const base64Image = await fileToBase64(selectedImage);
+          const response = await fetch(ROBOTFLOW_WORKFLOW_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              api_key: ROBOTFLOW_API_KEY,
+              inputs: { image: { type: "base64", value: base64Image } }
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error(`API Error: ${response.status} ${response.statusText}`);
+          }
+          const data = await response.json();
+          setRawApiResponse(JSON.stringify(data, null, 2));
+          let foundPrediction = false;
+          if (data.outputs && Array.isArray(data.outputs)) {
+            for (const output of data.outputs) {
+              if (output.model_predictions?.predictions?.[0]) {
+                const topPrediction = output.model_predictions.predictions[0];
+                if (topPrediction.class && typeof topPrediction.confidence === 'number' && topPrediction.class.toLowerCase() !== 'chicken') {
+                  setDetectionResult(`Detected: ${topPrediction.class} (Confidence: ${(topPrediction.confidence * 100).toFixed(2)}%)`);
+                  foundPrediction = true;
+                  break;
+                }
+              }
+            }
+          }
+          if (!foundPrediction) {
+            setDetectionResult('No clear disease classification found.');
+          }
+        } catch (error) {
+          setErrorMessage(`Failed to detect disease: ${error.message}.`);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      return (
+        <div ref={appRef} className="min-h-screen bg-gradient-to-br from-purple-900 to-gray-900 font-inter text-gray-200 antialiased">
+          <header className="bg-gradient-to-r from-blue-900 to-gray-900 shadow-2xl py-8 px-4 md:px-8 text-white relative">
+            <h1 className="text-4xl md:text-5xl font-extrabold text-center tracking-tight drop-shadow-lg">
+              <span className="text-gradient">Poultry Health Dashboard</span> <span role="img" aria-label="chicken emoji">🐔</span>
+            </h1>
+            <p className="text-center text-gray-400 mt-3 text-lg md:text-xl font-light">Real-time monitoring and AI-powered disease detection.</p>
+            <button onClick={toggleFullscreen} className="absolute top-4 right-4 p-2 rounded-full bg-gray-700 hover:bg-gray-600 transition-colors" title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}>
+              {isFullscreen ? <Minimize size={24} className="text-gray-300" /> : <Maximize size={24} className="text-gray-300" />}
+            </button>
+          </header>
+          <main className="w-full px-4 md:px-8 lg:px-12 py-4 md:py-8 lg:py-12">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
+              <div className="lg:col-span-2 bg-gray-800 rounded-xl shadow-2xl p-6 md:p-8 border border-gray-700 transition-all duration-300 hover:shadow-3xl transform hover:-translate-y-1 custom-shadow">
+                <h2 className="text-2xl font-semibold text-gray-100 mb-6 flex items-center border-b pb-4 border-gray-700"><Thermometer size={24} className="mr-3 text-blue-400" /> Live Environment Data</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+                  <div className="p-5 bg-gray-700 rounded-lg shadow-lg border border-gray-600 flex flex-col items-center justify-center transition-all duration-200 hover:bg-gray-600 custom-shadow-sm">
+                    <Droplets size={32} className="text-blue-300 mb-2" /><p className="text-md font-medium text-blue-200 mb-1">Temperature</p><p className="text-4xl font-extrabold text-blue-100">{temperature}</p>
+                  </div>
+                  <div className="p-5 bg-gray-700 rounded-lg shadow-lg border border-gray-600 flex flex-col items-center justify-center transition-all duration-200 hover:bg-gray-600 custom-shadow-sm">
+                    <Droplets size={32} className="text-green-300 mb-2" /><p className="text-md font-medium text-green-200 mb-1">Humidity</p><p className="text-4xl font-extrabold text-green-100">{humidity}</p>
+                  </div>
+                  <div className="p-5 bg-gray-700 rounded-lg shadow-lg border border-gray-600 flex flex-col items-center justify-center transition-all duration-200 hover:bg-gray-600 custom-shadow-sm">
+                    <CloudFog size={32} className="text-yellow-300 mb-2" /><p className="text-md font-medium text-yellow-200 mb-1">Ammonia</p><p className="text-4xl font-extrabold text-yellow-100">{ammonia}</p>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-400 text-center mt-6">(Data is simulated for demonstration)</p>
+              </div>
+              <div className="bg-gray-800 rounded-xl shadow-2xl p-6 md:p-8 border border-gray-700 transition-all duration-300 hover:shadow-3xl transform hover:-translate-y-1 custom-shadow">
+                <h2 className="text-2xl font-semibold text-gray-100 mb-6 flex items-center border-b pb-4 border-gray-700 w-full"><Camera size={24} className="mr-3 text-purple-400" /> Live Webcam Feed</h2>
+                <div className="relative w-full aspect-video bg-gray-900 rounded-lg overflow-hidden shadow-inner border-2 border-gray-700">
+                  <video ref={videoRef} className="w-full h-full object-cover" autoPlay playsInline muted></video>
+                  {!webcamActive && !webcamError && <div className="absolute inset-0 flex items-center justify-center text-gray-500 font-bold">Webcam Paused</div>}
+                  {webcamError && <div className="absolute inset-0 flex items-center justify-center text-red-400 font-bold p-4 text-center">{webcamError}</div>}
+                </div>
+                <button onClick={toggleWebcam} className={`mt-4 w-full py-2 px-5 rounded-lg text-white font-semibold flex items-center justify-center transition-all ${webcamActive ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                  {webcamActive ? <><Pause size={20} className="mr-2" /> Stop Webcam</> : <><Play size={20} className="mr-2" /> Start Webcam</>}
+                </button>
+              </div>
+            </div>
+            <div className="bg-gray-800 rounded-xl shadow-2xl p-6 md:p-8 border border-gray-700 transition-all duration-300 hover:shadow-3xl transform hover:-translate-y-1 custom-shadow">
+              <h2 className="text-2xl font-semibold text-gray-100 mb-6 flex items-center border-b pb-4 border-gray-700"><UploadCloud size={24} className="mr-3 text-orange-400" /> Disease Detection</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                <div>
+                  <label htmlFor="image-upload" className="cursor-pointer w-full flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-600 rounded-lg hover:bg-gray-700 transition-colors">
+                    <UploadCloud size={48} className="text-gray-500 mb-3" />
+                    <span className="text-gray-400 font-semibold">{selectedImage ? 'Change Image' : 'Click to Upload Image'}</span>
+                    <span className="text-xs text-gray-500 mt-1">{selectedImage ? selectedImage.name : 'PNG, JPG, GIF up to 10MB'}</span>
+                  </label>
+                  <input id="image-upload" type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
+                  <button onClick={handleDetectDisease} disabled={isLoading || !selectedImage} className="mt-4 w-full py-3 px-5 rounded-lg text-white font-bold text-lg bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-900 disabled:cursor-not-allowed transition-all flex items-center justify-center">
+                    {isLoading ? 'Analyzing...' : 'Detect Disease'}
+                  </button>
+                </div>
+                <div className="flex flex-col items-center justify-center min-h-[200px] bg-gray-900 p-4 rounded-lg border border-gray-700">
+                  {imagePreviewUrl && <img src={imagePreviewUrl} alt="Preview" className="max-h-48 rounded-md mb-4 shadow-lg"/>}
+                  {errorMessage && <p className="text-red-400 font-bold text-center"><XCircle className="inline mr-2" /> {errorMessage}</p>}
+                  {detectionResult && <p className="text-green-300 font-bold text-xl text-center"><CheckCircle className="inline mr-2" /> {detectionResult}</p>}
+                  {!detectionResult && !errorMessage && !imagePreviewUrl && <p className="text-gray-500 text-center">Analysis result will appear here.</p>}
+                </div>
+              </div>
+              {rawApiResponse && (
+                <div className="mt-6">
+                  <h3 className="text-lg font-semibold text-gray-400">Raw API Response (for debugging):</h3>
+                  <pre className="bg-gray-900 text-xs text-gray-300 p-4 rounded-lg mt-2 max-h-48 overflow-auto">{rawApiResponse}</pre>
+                </div>
+              )}
+            </div>
+          </main>
+        </div>
+      );
+    };
+
+    // Render the App component to the 'root' div in the HTML
+    const container = document.getElementById('root');
+    const root = ReactDOM.createRoot(container);
+    root.render(<App />);
+
+  </script>
 </body>
 </html>
